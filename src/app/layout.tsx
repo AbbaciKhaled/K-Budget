@@ -15,6 +15,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: { default: "K-Budget", template: "%s · K-Budget" },
   description: "Minimal, effortless personal budgeting.",
+  applicationName: "K-Budget",
+  appleWebApp: { capable: true, title: "K-Budget", statusBarStyle: "default" },
+  formatDetection: { telephone: false },
 };
 
 export const viewport: Viewport = {
