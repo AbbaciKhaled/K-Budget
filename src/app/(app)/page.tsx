@@ -1,11 +1,32 @@
-import { Page, PageHeader } from "@/components/layout/Page";
-import { requireUser } from "@/server/session";
+import { HomeView } from "@/components/home/HomeView";
+import { Page } from "@/components/layout/Page";
+import { monthName, todayISO } from "@/lib/dates";
+import { getCategoryContext } from "@/server/queries/categories";
+import { listTags } from "@/server/queries/tags";
+import { getMonthTotals, getRecentTransactions } from "@/server/queries/transactions";
 
 export default async function HomePage() {
-  const user = await requireUser();
+  const { user, categories, current } = await getCategoryContext();
+  const today = todayISO();
+  const [tags, totals, recent] = await Promise.all([
+    listTags(current.id),
+    getMonthTotals(current.id, today),
+    getRecentTransactions(current.id, 5),
+  ]);
+
   return (
-    <Page>
-      <PageHeader title={`Hi, ${user.name.split(" ")[0]}`} subtitle="Home screen arrives in phase 2." />
+    <Page wide withQuickAdd>
+      <HomeView
+        userName={user.name}
+        currency={user.currency}
+        today={today}
+        monthLabel={monthName(today)}
+        categories={categories}
+        current={current}
+        tags={tags}
+        totals={totals}
+        recent={recent}
+      />
     </Page>
   );
 }

@@ -21,3 +21,7 @@ export function safeRedirectPath(value: unknown, fallback = "/") {
     return fallback;
   }
 }
+
+export function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}

@@ -43,8 +43,11 @@ export function formatMoney(
   currency: string,
   opts: { compact?: boolean; sign?: Intl.NumberFormatOptions["signDisplay"] } = {},
 ) {
-  return formatter(currency, opts.compact ?? false, opts.sign ?? "auto").format(cents / 100);
+  return withMinus(formatter(currency, opts.compact ?? false, opts.sign ?? "auto").format(cents / 100));
 }
+
+/** Use a true minus sign (U+2212) — it aligns with "+" and reads better in tabular figures. */
+const withMinus = (s: string) => s.replace("-", "\u2212");
 
 /** Split a formatted amount so the decimals can be styled separately. */
 export function formatMoneyParts(cents: number, currency: string, sign: Intl.NumberFormatOptions["signDisplay"] = "auto") {
@@ -55,7 +58,7 @@ export function formatMoneyParts(cents: number, currency: string, sign: Intl.Num
   for (const p of parts) {
     if (p.type === "decimal") seenDecimal = true;
     if (seenDecimal && (p.type === "decimal" || p.type === "fraction")) fraction += p.value;
-    else main += p.value;
+    else main += p.type === "minusSign" ? "\u2212" : p.value;
   }
   return { main: main.trim(), fraction };
 }
