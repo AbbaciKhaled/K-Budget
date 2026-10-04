@@ -19,6 +19,7 @@ export function TransactionRow({
   showDate = true,
   onClick,
   highlight,
+  viewerId,
 }: {
   tx: TransactionDTO;
   tagsById: Map<string, TagDTO>;
@@ -27,10 +28,13 @@ export function TransactionRow({
   showDate?: boolean;
   onClick?: () => void;
   highlight?: boolean;
+  /** Set in shared categories: shows who added the transaction ("You" for the viewer). */
+  viewerId?: string;
 }) {
   const income = tx.type === "income";
   const { title, noteInSubtitle } = transactionTitle(tx, tagsById);
-  const subtitle = [showDate ? relativeDayLabel(tx.date, today) : null, noteInSubtitle && tx.note ? tx.note : null]
+  const author = viewerId ? (tx.author.id === viewerId ? "by you" : `by ${tx.author.name.split(" ")[0]}`) : null;
+  const subtitle = [showDate ? relativeDayLabel(tx.date, today) : null, author, noteInSubtitle && tx.note ? tx.note : null]
     .filter(Boolean)
     .join(" · ");
   const firstTag = tx.tagIds.map((id) => tagsById.get(id)).find(Boolean);

@@ -17,6 +17,7 @@ import { QuickAdd } from "./QuickAdd";
 import { SummaryCard } from "./SummaryCard";
 
 type Props = {
+  userId: string;
   userName: string;
   currency: string;
   today: string;
@@ -37,7 +38,7 @@ function byNewest(a: TransactionDTO, b: TransactionDTO) {
   return a.date === b.date ? (a.id < b.id ? 1 : -1) : a.date < b.date ? 1 : -1;
 }
 
-export function HomeView({ userName, currency, today, monthLabel, categories, current, tags, totals, recent }: Props) {
+export function HomeView({ userId, userName, currency, today, monthLabel, categories, current, tags, totals, recent }: Props) {
   const toast = useToast();
   const created = useRef(new Map<string, Promise<unknown>>());
   const tagsById = useMemo(() => new Map(tags.map((t) => [t.id, t])), [tags]);
@@ -125,6 +126,7 @@ export function HomeView({ userName, currency, today, monthLabel, categories, cu
                       tagsById={tagsById}
                       currency={currency}
                       today={today}
+                      viewerId={current.shared ? userId : undefined}
                       highlight={!recent.some((r) => r.id === tx.id)}
                     />
                   </li>
@@ -135,7 +137,15 @@ export function HomeView({ userName, currency, today, monthLabel, categories, cu
         </section>
       </div>
 
-      <QuickAdd key={current.id} categoryId={current.id} tags={tags} currency={currency} today={today} onAdd={add} />
+      <QuickAdd
+        key={current.id}
+        categoryId={current.id}
+        tags={tags}
+        currency={currency}
+        today={today}
+        me={{ id: userId, name: userName }}
+        onAdd={add}
+      />
     </div>
   );
 }

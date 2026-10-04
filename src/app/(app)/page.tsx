@@ -17,8 +17,9 @@ export default async function HomePage() {
   return (
     <Page wide withQuickAdd>
       <HomeView
+        userId={user.id}
         userName={user.name}
-        currency={user.currency}
+        currency={current.currency}
         today={today}
         monthLabel={monthName(today)}
         categories={categories}

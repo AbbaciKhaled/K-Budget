@@ -10,7 +10,7 @@ export default async function CategoriesPage({ searchParams }: PageProps<"/categ
   const [{ new: openNew }, user, categories] = await Promise.all([searchParams, requireUser(), listCategoriesWithStats()]);
   return (
     <Page>
-      <CategoriesManager categories={categories} currentId={user.lastCategoryId} openNew={openNew === "1"} />
+      <CategoriesManager categories={categories} currentId={user.lastCategoryId} viewerId={user.id} openNew={openNew === "1"} />
     </Page>
   );
 }

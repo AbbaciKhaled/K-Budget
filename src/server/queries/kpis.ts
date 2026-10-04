@@ -5,8 +5,8 @@ import { addDays, daysBetween, fromISODate } from "@/lib/dates";
 import { bucketKeys, bucketLabel, type Period } from "@/lib/periods";
 import type { TransactionDTO, TransactionType } from "@/lib/types";
 import { Transaction } from "@/models/Transaction";
-import { toTransactionDTO } from "@/server/mappers";
-import { requireUserId } from "@/server/session";
+import { toTransactionDTOs } from "@/server/mappers";
+import { requireCategory } from "@/server/queries/categories";
 
 export type KpiValues = {
   income: number;
@@ -50,9 +50,9 @@ function toValues(rows: { _id: TransactionType; total: number; count: number }[]
 }
 
 export async function getKpis(categoryId: string, period: Period): Promise<KpiData> {
-  const userId = await requireUserId();
+  const category = await requireCategory(categoryId);
   await connectDB();
-  const base = { userId, categoryId: new Types.ObjectId(categoryId) };
+  const base = { categoryId: category };
   const current = { ...base, date: range(period.from, period.to) };
   const dateFormat = period.granularity === "day" ? "%Y-%m-%d" : period.granularity === "month" ? "%Y-%m" : "%Y";
 
@@ -119,7 +119,7 @@ export async function getKpis(categoryId: string, period: Period): Promise<KpiDa
     previous: toValues(prevRows, daysBetween(period.previous.from, period.previous.to)),
     series,
     byTag,
-    largest: { expense: largestExpenses.map(toTransactionDTO), income: largestIncome.map(toTransactionDTO) },
+    largest: { expense: await toTransactionDTOs(largestExpenses), income: await toTransactionDTOs(largestIncome) },
     hasAnyTransactions: Boolean(anyTx),
   };
 }

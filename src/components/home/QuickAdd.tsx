@@ -27,10 +27,11 @@ type Props = {
   tags: TagDTO[];
   currency: string;
   today: string;
+  me: { id: string; name: string };
   onAdd: (tx: TransactionDTO) => void;
 };
 
-export function QuickAdd({ categoryId, tags, currency, today, onAdd }: Props) {
+export function QuickAdd({ categoryId, tags, currency, today, me, onAdd }: Props) {
   const toast = useToast();
   const amountRef = useRef<HTMLInputElement>(null);
   const tagRowRef = useRef<HTMLDivElement>(null);
@@ -60,6 +61,7 @@ export function QuickAdd({ categoryId, tags, currency, today, onAdd }: Props) {
       date,
       tagIds: selected.filter((id) => allTags.some((t) => t.id === id)),
       note: note.trim(),
+      author: me,
     });
     setAmount("");
     setNote("");

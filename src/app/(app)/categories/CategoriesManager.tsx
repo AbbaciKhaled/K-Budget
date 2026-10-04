@@ -2,8 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { ChevronRight, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, LogOut, Plus, Trash2, Users } from "lucide-react";
 import { CategoryForm } from "@/components/categories/CategoryForm";
+import { CategorySharing } from "@/components/categories/CategorySharing";
 import { CategoryBadge } from "@/components/categories/CategorySwitcher";
 import { PageHeader } from "@/components/layout/Page";
 import { Button } from "@/components/ui/Button";
@@ -12,20 +13,26 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Sheet } from "@/components/ui/Sheet";
 import { useToast } from "@/components/ui/Toast";
-import type { CategoryDTO } from "@/lib/types";
-import { createCategoryAction, deleteCategoryAction, updateCategoryAction } from "@/server/actions/categories";
-
-type CategoryWithStats = CategoryDTO & { transactionCount: number; tagCount: number };
+import {
+  createCategoryAction,
+  deleteCategoryAction,
+  leaveCategoryAction,
+  updateCategoryAction,
+} from "@/server/actions/categories";
+import type { CategoryWithStats } from "@/server/queries/categories";
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const peopleCount = (n: number) => `${n} ${n === 1 ? "person" : "people"}`;
 
 export function CategoriesManager({
   categories,
   currentId,
+  viewerId,
   openNew,
 }: {
   categories: CategoryWithStats[];
   currentId: string | null;
+  viewerId: string;
   openNew: boolean;
 }) {
   const router = useRouter();
@@ -34,6 +41,8 @@ export function CategoriesManager({
   const [editing, setEditing] = useState<CategoryWithStats | null>(null);
   const [deleting, setDeleting] = useState<CategoryWithStats | null>(null);
   const [pendingDelete, startDelete] = useTransition();
+  const [leaving, setLeaving] = useState<CategoryWithStats | null>(null);
+  const [pendingLeave, startLeave] = useTransition();
 
   function closeCreate() {
     setCreating(false);
@@ -52,6 +61,22 @@ export function CategoriesManager({
         if (categories.length === 1) router.replace("/onboarding");
       } else {
         toast({ message: res.message ?? "Couldn't delete category", tone: "error" });
+      }
+    });
+  }
+
+  function confirmLeave() {
+    if (!leaving) return;
+    const target = leaving;
+    startLeave(async () => {
+      const res = await leaveCategoryAction(target.id);
+      setLeaving(null);
+      if (res.ok) {
+        setEditing(null);
+        toast({ message: `You left “${target.name}”` });
+        if (categories.length === 1) router.replace("/onboarding");
+      } else {
+        toast({ message: res.message ?? "Couldn't leave category", tone: "error" });
       }
     });
   }
@@ -90,9 +115,15 @@ export function CategoriesManager({
                         <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-semibold text-accent-ink">Current</span>
                       ) : null}
                     </span>
-                    <span className="block text-[13px] text-muted">
+                    <span className="block truncate text-[13px] text-muted">
                       {plural(c.transactionCount, "transaction")} · {plural(c.tagCount, "tag")}
                     </span>
+                    {c.shared ? (
+                      <span className="mt-0.5 flex items-center gap-1 text-[12px] font-medium text-accent-ink">
+                        <Users className="size-3.5" aria-hidden />
+                        {c.isOwner ? `Shared with ${peopleCount(c.members.length - 1)}` : `Shared by ${c.ownerName}`}
+                      </span>
+                    ) : null}
                   </span>
                   <span className="size-3 shrink-0 rounded-full" style={{ backgroundColor: c.color }} aria-hidden />
                   <ChevronRight className="size-4 shrink-0 text-muted" aria-hidden />
@@ -115,23 +146,57 @@ export function CategoriesManager({
         />
       </Sheet>
 
-      <Sheet open={editing !== null && deleting === null} onClose={() => setEditing(null)} title="Edit category">
+      <Sheet
+        open={editing !== null && deleting === null && leaving === null}
+        onClose={() => setEditing(null)}
+        title={editing?.isOwner === false ? editing.name : "Edit category"}
+        description={editing?.isOwner === false ? `Shared with you by ${editing.ownerName}` : undefined}
+      >
         {editing ? (
-          <>
-            <CategoryForm
-              key={editing.id}
-              initial={editing}
-              action={(fd) => updateCategoryAction(editing.id, fd)}
-              submitLabel="Save changes"
-              onSuccess={() => {
-                setEditing(null);
-                toast({ message: "Category updated" });
-              }}
-            />
-            <Button variant="ghost" block className="mt-3 text-expense hover:bg-expense-soft hover:text-expense" onClick={() => setDeleting(editing)}>
-              <Trash2 className="size-4" aria-hidden /> Delete category
-            </Button>
-          </>
+          <div className="flex flex-col gap-6">
+            {editing.isOwner ? (
+              <CategoryForm
+                key={editing.id}
+                initial={editing}
+                action={(fd) => updateCategoryAction(editing.id, fd)}
+                submitLabel="Save changes"
+                onSuccess={() => {
+                  setEditing(null);
+                  toast({ message: "Category updated" });
+                }}
+              />
+            ) : null}
+
+            <div className={editing.isOwner ? "border-t border-line pt-5" : undefined}>
+              <CategorySharing
+                key={editing.id}
+                categoryId={editing.id}
+                members={editing.members}
+                canManage={editing.isOwner}
+                viewerId={viewerId}
+              />
+            </div>
+
+            {editing.isOwner ? (
+              <Button
+                variant="ghost"
+                block
+                className="text-expense hover:bg-expense-soft hover:text-expense"
+                onClick={() => setDeleting(editing)}
+              >
+                <Trash2 className="size-4" aria-hidden /> Delete category
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                block
+                className="text-expense hover:bg-expense-soft hover:text-expense"
+                onClick={() => setLeaving(editing)}
+              >
+                <LogOut className="size-4" aria-hidden /> Leave category
+              </Button>
+            )}
+          </div>
         ) : null}
       </Sheet>
 
@@ -146,9 +211,24 @@ export function CategoriesManager({
           deleting ? (
             <>
               This permanently deletes the category, <strong>{plural(deleting.tagCount, "tag")}</strong> and{" "}
-              <strong>{plural(deleting.transactionCount, "transaction")}</strong>. This can&apos;t be undone.
+              <strong>{plural(deleting.transactionCount, "transaction")}</strong>
+              {deleting.shared ? <> for everyone it&apos;s shared with</> : null}. This can&apos;t be undone.
             </>
           ) : null
+        }
+      />
+
+      <ConfirmDialog
+        open={leaving !== null}
+        onClose={() => setLeaving(null)}
+        onConfirm={confirmLeave}
+        pending={pendingLeave}
+        title={`Leave “${leaving?.name ?? ""}”?`}
+        confirmLabel="Leave"
+        description={
+          leaving
+            ? `You'll lose access to this budget. Transactions you added stay in it. ${leaving.ownerName} can share it with you again.`
+            : null
         }
       />
     </>

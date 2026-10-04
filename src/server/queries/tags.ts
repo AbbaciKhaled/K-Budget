@@ -5,25 +5,22 @@ import type { TagDTO } from "@/lib/types";
 import { Tag } from "@/models/Tag";
 import { Transaction } from "@/models/Transaction";
 import { toTagDTO } from "@/server/mappers";
-import { requireUserId } from "@/server/session";
+import { requireCategory } from "@/server/queries/categories";
 
 export async function listTags(categoryId: string): Promise<TagDTO[]> {
-  const userId = await requireUserId();
+  const category = await requireCategory(categoryId);
   await connectDB();
-  const tags = await Tag.find({ userId, categoryId: new Types.ObjectId(categoryId) })
-    .collation({ locale: "en", strength: 2 })
-    .sort({ name: 1 })
-    .lean();
+  const tags = await Tag.find({ categoryId: category }).collation({ locale: "en", strength: 2 }).sort({ name: 1 }).lean();
   return tags.map(toTagDTO);
 }
 
 /** Tags with all-time usage and money in / out (multi-tag transactions are split evenly, as in KPIs). */
 export async function listTagsWithUsage(categoryId: string) {
-  const userId = await requireUserId();
+  const category = await requireCategory(categoryId);
   const [tags, usage] = await Promise.all([
     listTags(categoryId),
     Transaction.aggregate<{ _id: Types.ObjectId; count: number; income: number; expense: number }>([
-      { $match: { userId, categoryId: new Types.ObjectId(categoryId), "tagIds.0": { $exists: true } } },
+      { $match: { categoryId: category, "tagIds.0": { $exists: true } } },
       { $addFields: { share: { $divide: ["$amount", { $size: "$tagIds" }] } } },
       { $unwind: "$tagIds" },
       {
@@ -45,12 +42,12 @@ export async function listTagsWithUsage(categoryId: string) {
 
 /** Tags ordered by how often they were used in the last 90 days (then by name) — for quick-add. */
 export async function listTagsByRecentUsage(categoryId: string): Promise<TagDTO[]> {
-  const userId = await requireUserId();
+  const category = await requireCategory(categoryId);
   const since = new Date(Date.now() - 90 * 86_400_000);
   const [tags, usage] = await Promise.all([
     listTags(categoryId),
     Transaction.aggregate<{ _id: Types.ObjectId; count: number }>([
-      { $match: { userId, categoryId: new Types.ObjectId(categoryId), date: { $gte: since }, "tagIds.0": { $exists: true } } },
+      { $match: { categoryId: category, date: { $gte: since }, "tagIds.0": { $exists: true } } },
       { $unwind: "$tagIds" },
       { $group: { _id: "$tagIds", count: { $sum: 1 } } },
     ]),

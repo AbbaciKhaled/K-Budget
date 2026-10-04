@@ -14,4 +14,7 @@ const userSchema = new Schema(
 
 export type UserDoc = InferSchemaType<typeof userSchema> & { _id: Types.ObjectId };
 
+// In dev, hot reload re-runs this file: drop the cached model so schema changes apply.
+if (process.env.NODE_ENV !== "production") delete models.User;
+
 export const User: Model<UserDoc> = (models.User as Model<UserDoc>) ?? model<UserDoc>("User", userSchema);

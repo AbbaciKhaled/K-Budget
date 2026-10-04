@@ -10,11 +10,19 @@ import { fieldErrors, type ActionResult } from "@/lib/validation/form";
 import { Tag } from "@/models/Tag";
 import { Transaction } from "@/models/Transaction";
 import { toTagDTO } from "@/server/mappers";
-import { ownedCategoryId } from "@/server/ownership";
+import { accessibleCategory } from "@/server/access";
 import { requireUserId } from "@/server/session";
 
-function sameNameFilter(userId: Types.ObjectId, categoryId: Types.ObjectId, name: string) {
-  return { userId, categoryId, name: { $regex: `^${escapeRegex(name)}$`, $options: "i" } };
+function sameNameFilter(categoryId: Types.ObjectId, name: string) {
+  return { categoryId, name: { $regex: `^${escapeRegex(name)}$`, $options: "i" } };
+}
+
+/** Loads a tag only if the user can access its category (owner or member). */
+async function accessibleTag(userId: Types.ObjectId, id: string) {
+  if (!objectIdSchema.safeParse(id).success) return null;
+  const tag = await Tag.findById(id).lean();
+  if (!tag) return null;
+  return (await accessibleCategory(userId, tag.categoryId)) ? tag : null;
 }
 
 export async function createTagAction(input: TagInput): Promise<ActionResult<TagDTO>> {
@@ -23,31 +31,30 @@ export async function createTagAction(input: TagInput): Promise<ActionResult<Tag
   if (!parsed.success) return { ok: false, errors: fieldErrors(parsed.error) };
 
   await connectDB();
-  const categoryId = await ownedCategoryId(userId, parsed.data.categoryId);
-  if (!categoryId) return { ok: false, message: "Category not found." };
+  const category = await accessibleCategory(userId, parsed.data.categoryId);
+  if (!category) return { ok: false, message: "Category not found." };
 
-  const existing = await Tag.findOne(sameNameFilter(userId, categoryId, parsed.data.name)).lean();
+  const existing = await Tag.findOne(sameNameFilter(category._id, parsed.data.name)).lean();
   if (existing) return { ok: false, errors: { name: ["This tag already exists"] }, message: "This tag already exists" };
 
-  const tag = await Tag.create({ ...parsed.data, categoryId, userId });
+  const tag = await Tag.create({ ...parsed.data, categoryId: category._id, userId });
   revalidatePath("/", "layout");
   return { ok: true, data: toTagDTO(tag.toObject()), message: "Tag created" };
 }
 
 export async function updateTagAction(id: string, input: { name: string; color: string }): Promise<ActionResult> {
   const userId = await requireUserId();
-  if (!objectIdSchema.safeParse(id).success) return { ok: false, message: "Tag not found." };
   const parsed = tagUpdateSchema.safeParse(input);
   if (!parsed.success) return { ok: false, errors: fieldErrors(parsed.error) };
 
   await connectDB();
-  const tag = await Tag.findOne({ _id: id, userId }).lean();
+  const tag = await accessibleTag(userId, id);
   if (!tag) return { ok: false, message: "Tag not found." };
 
-  const clash = await Tag.exists({ ...sameNameFilter(userId, tag.categoryId, parsed.data.name), _id: { $ne: tag._id } });
+  const clash = await Tag.exists({ ...sameNameFilter(tag.categoryId, parsed.data.name), _id: { $ne: tag._id } });
   if (clash) return { ok: false, errors: { name: ["Another tag already has this name"] } };
 
-  await Tag.updateOne({ _id: tag._id, userId }, { $set: parsed.data });
+  await Tag.updateOne({ _id: tag._id }, { $set: parsed.data });
   revalidatePath("/", "layout");
   return { ok: true, message: "Tag updated" };
 }
@@ -55,13 +62,12 @@ export async function updateTagAction(id: string, input: { name: string; color: 
 /** Deletes a tag and detaches it from its transactions (transactions are kept). */
 export async function deleteTagAction(id: string): Promise<ActionResult> {
   const userId = await requireUserId();
-  if (!objectIdSchema.safeParse(id).success) return { ok: false, message: "Tag not found." };
-
   await connectDB();
-  const tagId = new Types.ObjectId(id);
-  const res = await Tag.deleteOne({ _id: tagId, userId });
-  if (res.deletedCount === 0) return { ok: false, message: "Tag not found." };
-  await Transaction.updateMany({ userId, tagIds: tagId }, { $pull: { tagIds: tagId } });
+  const tag = await accessibleTag(userId, id);
+  if (!tag) return { ok: false, message: "Tag not found." };
+
+  await Tag.deleteOne({ _id: tag._id });
+  await Transaction.updateMany({ categoryId: tag.categoryId, tagIds: tag._id }, { $pull: { tagIds: tag._id } });
   revalidatePath("/", "layout");
   return { ok: true, message: "Tag deleted" };
 }

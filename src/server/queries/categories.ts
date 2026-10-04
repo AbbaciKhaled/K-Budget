@@ -1,20 +1,73 @@
 import "server-only";
 import { cache } from "react";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { Types } from "mongoose";
 import { connectDB } from "@/lib/db";
-import type { CategoryDTO, CurrentUser } from "@/lib/types";
+import type { CategoryDTO, CurrentUser, MemberDTO } from "@/lib/types";
 import { Category } from "@/models/Category";
 import { Tag } from "@/models/Tag";
 import { Transaction } from "@/models/Transaction";
-import { toCategoryDTO } from "@/server/mappers";
+import { User } from "@/models/User";
+import { accessFilter } from "@/server/access";
 import { requireUser, requireUserId } from "@/server/session";
 
-export const listCategories = cache(async (): Promise<CategoryDTO[]> => {
+type CategoryRow = CategoryDTO & { memberIds: string[] };
+
+/** Every category the user owns or that was shared with them (deduplicated per request). */
+const loadCategories = cache(async (): Promise<CategoryRow[]> => {
   const userId = await requireUserId();
   await connectDB();
-  const categories = await Category.find({ userId }).sort({ createdAt: 1 }).lean();
-  return categories.map(toCategoryDTO);
+  const docs = await Category.find(accessFilter(userId)).sort({ createdAt: 1 }).lean();
+
+  const ownerIds = [...new Set(docs.map((d) => d.userId.toString()))];
+  const owners = await User.find({ _id: { $in: ownerIds } }).select("name currency").lean();
+  const ownersById = new Map(owners.map((o) => [o._id.toString(), o]));
+  const me = userId.toString();
+
+  return docs.map((d) => {
+    const ownerId = d.userId.toString();
+    const owner = ownersById.get(ownerId);
+    const memberIds = (d.memberIds ?? []).map((m) => m.toString());
+    return {
+      id: d._id.toString(),
+      name: d.name,
+      icon: d.icon,
+      color: d.color,
+      ownerId,
+      ownerName: owner?.name ?? "Unknown",
+      isOwner: ownerId === me,
+      shared: memberIds.length > 0,
+      currency: owner?.currency ?? "EUR",
+      memberIds,
+    };
+  });
 });
+
+function toDTO(row: CategoryRow): CategoryDTO {
+  return {
+    id: row.id,
+    name: row.name,
+    icon: row.icon,
+    color: row.color,
+    ownerId: row.ownerId,
+    ownerName: row.ownerName,
+    isOwner: row.isOwner,
+    shared: row.shared,
+    currency: row.currency,
+  };
+}
+
+export const listCategories = cache(async (): Promise<CategoryDTO[]> => (await loadCategories()).map(toDTO));
+
+/**
+ * Guard for every category-scoped query: returns the category as an ObjectId if
+ * the current user can access it, otherwise 404. Uses the per-request cached list.
+ */
+export async function requireCategory(categoryId: string) {
+  const found = (await loadCategories()).find((c) => c.id === categoryId);
+  if (!found) notFound();
+  return new Types.ObjectId(found.id);
+}
 
 export type CategoryContext = {
   user: CurrentUser;
@@ -33,20 +86,35 @@ export const getCategoryContext = cache(async (): Promise<CategoryContext> => {
   return { user, categories, current };
 });
 
-export async function listCategoriesWithStats() {
-  const userId = await requireUserId();
-  const categories = await listCategories();
-  const [txCounts, tagCounts] = await Promise.all([
-    Transaction.aggregate<{ _id: unknown; count: number }>([
-      { $match: { userId } },
+export type CategoryWithStats = CategoryDTO & { transactionCount: number; tagCount: number; members: MemberDTO[] };
+
+export async function listCategoriesWithStats(): Promise<CategoryWithStats[]> {
+  const rows = await loadCategories();
+  const ids = rows.map((r) => new Types.ObjectId(r.id));
+  const peopleIds = [...new Set(rows.flatMap((r) => [r.ownerId, ...r.memberIds]))];
+
+  const [txCounts, tagCounts, people] = await Promise.all([
+    Transaction.aggregate<{ _id: Types.ObjectId; count: number }>([
+      { $match: { categoryId: { $in: ids } } },
       { $group: { _id: "$categoryId", count: { $sum: 1 } } },
     ]),
-    Tag.aggregate<{ _id: unknown; count: number }>([
-      { $match: { userId } },
+    Tag.aggregate<{ _id: Types.ObjectId; count: number }>([
+      { $match: { categoryId: { $in: ids } } },
       { $group: { _id: "$categoryId", count: { $sum: 1 } } },
     ]),
+    User.find({ _id: { $in: peopleIds } }).select("name username").lean(),
   ]);
-  const tx = new Map(txCounts.map((r) => [String(r._id), r.count]));
-  const tags = new Map(tagCounts.map((r) => [String(r._id), r.count]));
-  return categories.map((c) => ({ ...c, transactionCount: tx.get(c.id) ?? 0, tagCount: tags.get(c.id) ?? 0 }));
+  const tx = new Map(txCounts.map((r) => [r._id.toString(), r.count]));
+  const tags = new Map(tagCounts.map((r) => [r._id.toString(), r.count]));
+  const peopleById = new Map(people.map((p) => [p._id.toString(), p]));
+
+  return rows.map((row) => ({
+    ...toDTO(row),
+    transactionCount: tx.get(row.id) ?? 0,
+    tagCount: tags.get(row.id) ?? 0,
+    members: [row.ownerId, ...row.memberIds].flatMap((id) => {
+      const p = peopleById.get(id);
+      return p ? [{ id, name: p.name, username: p.username, isOwner: id === row.ownerId }] : [];
+    }),
+  }));
 }

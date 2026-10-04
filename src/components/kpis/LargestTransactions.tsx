@@ -16,7 +16,9 @@ export function LargestTransactions({
   tagsById,
   currency,
   today,
+  viewerId,
 }: {
+  viewerId?: string;
   largest: Record<TransactionType, TransactionDTO[]>;
   tagsById: Map<string, TagDTO>;
   currency: string;
@@ -37,7 +39,7 @@ export function LargestTransactions({
           <ol className="divide-y divide-line/70">
             {items.map((tx) => (
               <li key={tx.id}>
-                <TransactionRow tx={tx} tagsById={tagsById} currency={currency} today={today} />
+                <TransactionRow tx={tx} tagsById={tagsById} currency={currency} today={today} viewerId={viewerId} />
               </li>
             ))}
           </ol>

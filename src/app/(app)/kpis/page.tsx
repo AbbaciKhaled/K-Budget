@@ -27,7 +27,8 @@ export default async function KpisPage({ searchParams }: PageProps<"/kpis">) {
         categories={categories}
         current={current}
         tags={tags}
-        currency={user.currency}
+        currency={current.currency}
+        userId={user.id}
         today={today}
         period={period}
         data={data}

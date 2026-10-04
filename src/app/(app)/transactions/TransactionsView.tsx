@@ -25,6 +25,7 @@ import { deleteTransactionAction } from "@/server/actions/transactions";
 import type { TransactionFilters } from "@/server/queries/transactions";
 
 type Props = {
+  userId: string;
   categories: CategoryDTO[];
   current: CategoryDTO;
   tags: TagDTO[];
@@ -47,7 +48,7 @@ const TYPE_OPTIONS = [
 type FilterPatch = Partial<Record<"type" | "tag" | "from" | "to" | "limit", string | undefined>>;
 
 export function TransactionsView(props: Props) {
-  const { categories, current, tags, currency, today, filters, pageSize, items, hasMore, totals, count } = props;
+  const { userId, categories, current, tags, currency, today, filters, pageSize, items, hasMore, totals, count } = props;
   const router = useRouter();
   const pathname = usePathname();
   const toast = useToast();
@@ -192,6 +193,7 @@ export function TransactionsView(props: Props) {
                         currency={currency}
                         today={today}
                         showDate={false}
+                        viewerId={current.shared ? userId : undefined}
                         onClick={() => setEditing(tx)}
                       />
                     </li>
@@ -227,7 +229,14 @@ export function TransactionsView(props: Props) {
         }}
       />
 
-      <Sheet open={editing !== null && deleting === null} onClose={() => setEditing(null)} title="Edit transaction">
+      <Sheet
+        open={editing !== null && deleting === null}
+        onClose={() => setEditing(null)}
+        title="Edit transaction"
+        description={
+          editing && current.shared ? `Added by ${editing.author.id === userId ? "you" : editing.author.name}` : undefined
+        }
+      >
         {editing ? (
           <TransactionForm
             key={editing.id}

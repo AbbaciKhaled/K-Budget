@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useOptimistic, useState, useTransition } from "react";
-import { Check, ChevronDown, Plus, Settings2 } from "lucide-react";
+import { Check, ChevronDown, Plus, Settings2, Users } from "lucide-react";
 import { Sheet } from "@/components/ui/Sheet";
 import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/Toast";
@@ -81,7 +81,15 @@ export function CategorySwitcher({
                   )}
                 >
                   <CategoryBadge category={c} size={40} />
-                  <span className="flex-1 truncate">{c.name}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">{c.name}</span>
+                    {c.shared ? (
+                      <span className="flex items-center gap-1 text-[12px] font-medium text-muted">
+                        <Users className="size-3.5" aria-hidden />
+                        {c.isOwner ? "Shared" : `Shared by ${c.ownerName}`}
+                      </span>
+                    ) : null}
+                  </span>
                   {selected ? <Check className="size-5 text-accent" aria-hidden /> : null}
                 </button>
               </li>

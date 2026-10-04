@@ -21,6 +21,7 @@ import { TagBreakdown } from "./TagBreakdown";
 import { TagInOut } from "./TagInOut";
 
 type Props = {
+  userId: string;
   categories: CategoryDTO[];
   current: CategoryDTO;
   tags: TagDTO[];
@@ -37,7 +38,7 @@ const VS_LABEL: Record<PeriodKind, string> = {
   custom: "vs previous period",
 };
 
-export function KpiDashboard({ categories, current, tags, currency, today, period, data }: Props) {
+export function KpiDashboard({ userId, categories, current, tags, currency, today, period, data }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const [pending, startTransition] = useTransition();
@@ -179,7 +180,13 @@ export function KpiDashboard({ categories, current, tags, currency, today, perio
 
                 <TagBreakdown byTag={data.byTag} tags={tags} currency={currency} />
                 <TagInOut byTag={data.byTag} tags={tags} currency={currency} />
-                <LargestTransactions largest={data.largest} tagsById={tagsById} currency={currency} today={today} />
+                <LargestTransactions
+                  largest={data.largest}
+                  tagsById={tagsById}
+                  currency={currency}
+                  today={today}
+                  viewerId={current.shared ? userId : undefined}
+                />
               </>
             )}
           </>

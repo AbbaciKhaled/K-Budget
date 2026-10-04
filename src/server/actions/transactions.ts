@@ -13,8 +13,16 @@ import {
 } from "@/lib/validation/budget";
 import { fieldErrors, type ActionResult } from "@/lib/validation/form";
 import { Transaction } from "@/models/Transaction";
-import { ownedCategoryId, ownedTagIds } from "@/server/ownership";
+import { accessibleCategory, categoryTagIds } from "@/server/access";
 import { requireUserId } from "@/server/session";
+
+/** Loads a transaction only if the user can access its category (owner or member). */
+async function accessibleTransaction(userId: Types.ObjectId, id: string) {
+  if (!objectIdSchema.safeParse(id).success) return null;
+  const tx = await Transaction.findById(id).select("categoryId").lean();
+  if (!tx) return null;
+  return (await accessibleCategory(userId, tx.categoryId)) ? tx : null;
+}
 
 export async function createTransactionAction(input: CreateTransactionInput): Promise<ActionResult<{ id: string }>> {
   const userId = await requireUserId();
@@ -23,17 +31,17 @@ export async function createTransactionAction(input: CreateTransactionInput): Pr
 
   const { id, categoryId: rawCategoryId, tagIds, date, ...rest } = parsed.data;
   await connectDB();
-  const categoryId = await ownedCategoryId(userId, rawCategoryId);
-  if (!categoryId) return { ok: false, message: "Category not found." };
+  const category = await accessibleCategory(userId, rawCategoryId);
+  if (!category) return { ok: false, message: "Category not found." };
 
   try {
     const tx = await Transaction.create({
       ...(id ? { _id: new Types.ObjectId(id) } : {}),
       ...rest,
-      userId,
-      categoryId,
+      userId, // author
+      categoryId: category._id,
       date: fromISODate(date),
-      tagIds: await ownedTagIds(userId, categoryId, tagIds),
+      tagIds: await categoryTagIds(category._id, tagIds),
     });
     revalidatePath("/", "layout");
     return { ok: true, data: { id: tx._id.toString() } };
@@ -45,38 +53,38 @@ export async function createTransactionAction(input: CreateTransactionInput): Pr
 
 export async function updateTransactionAction(id: string, input: TransactionInput): Promise<ActionResult> {
   const userId = await requireUserId();
-  if (!objectIdSchema.safeParse(id).success) return { ok: false, message: "Transaction not found." };
   const parsed = transactionSchema.safeParse(input);
   if (!parsed.success) return { ok: false, errors: fieldErrors(parsed.error) };
 
   await connectDB();
-  const categoryId = await ownedCategoryId(userId, parsed.data.categoryId);
-  if (!categoryId) return { ok: false, message: "Category not found." };
+  const existing = await accessibleTransaction(userId, id);
+  if (!existing) return { ok: false, message: "Transaction not found." };
+  const category = await accessibleCategory(userId, parsed.data.categoryId);
+  if (!category) return { ok: false, message: "Category not found." };
 
-  const res = await Transaction.updateOne(
-    { _id: id, userId },
+  await Transaction.updateOne(
+    { _id: existing._id },
     {
       $set: {
         type: parsed.data.type,
         amount: parsed.data.amount,
         note: parsed.data.note,
-        categoryId,
+        categoryId: category._id,
         date: fromISODate(parsed.data.date),
-        tagIds: await ownedTagIds(userId, categoryId, parsed.data.tagIds),
+        tagIds: await categoryTagIds(category._id, parsed.data.tagIds),
       },
     },
   );
-  if (res.matchedCount === 0) return { ok: false, message: "Transaction not found." };
   revalidatePath("/", "layout");
   return { ok: true, message: "Transaction updated" };
 }
 
 export async function deleteTransactionAction(id: string): Promise<ActionResult> {
   const userId = await requireUserId();
-  if (!objectIdSchema.safeParse(id).success) return { ok: false, message: "Transaction not found." };
   await connectDB();
-  const res = await Transaction.deleteOne({ _id: id, userId });
-  if (res.deletedCount === 0) return { ok: false, message: "Transaction not found." };
+  const existing = await accessibleTransaction(userId, id);
+  if (!existing) return { ok: false, message: "Transaction not found." };
+  await Transaction.deleteOne({ _id: existing._id });
   revalidatePath("/", "layout");
   return { ok: true, message: "Transaction deleted" };
 }

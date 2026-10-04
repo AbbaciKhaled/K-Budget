@@ -43,7 +43,8 @@ export default async function TransactionsPage({ searchParams }: PageProps<"/tra
         categories={categories}
         current={current}
         tags={tags}
-        currency={user.currency}
+        currency={current.currency}
+        userId={user.id}
         today={todayISO()}
         filters={filters}
         pageSize={PAGE_SIZE}
