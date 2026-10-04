@@ -1,10 +1,9 @@
 "use client";
 
 import { useRef, useState, useTransition, type KeyboardEvent } from "react";
-import { ArrowDownLeft, ArrowUpRight, CalendarDays, Plus } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, CalendarDays, PenLine, Plus, Tags, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Chip } from "@/components/ui/Chip";
-import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/Toast";
 import { addDays, relativeDayLabel } from "@/lib/dates";
 import { currencySymbol, parseAmountToCents } from "@/lib/money";
@@ -13,6 +12,7 @@ import { pickColor } from "@/lib/palette";
 import type { TagDTO, TransactionDTO, TransactionType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { createTagAction } from "@/server/actions/tags";
+import { TagPickerSheet } from "./TagPickerSheet";
 
 /** Keep only digits and a single decimal separator with ≤ 2 decimals. */
 function sanitizeAmount(raw: string) {
@@ -33,13 +33,14 @@ type Props = {
 export function QuickAdd({ categoryId, tags, currency, today, onAdd }: Props) {
   const toast = useToast();
   const amountRef = useRef<HTMLInputElement>(null);
+  const tagRowRef = useRef<HTMLDivElement>(null);
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(today);
   const [selected, setSelected] = useState<string[]>([]);
   const [shaking, setShaking] = useState(false);
+  const [note, setNote] = useState("");
   const [newTags, setNewTags] = useState<TagDTO[]>([]);
-  const [creatingTag, setCreatingTag] = useState(false);
-  const [tagName, setTagName] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [savingTag, startSavingTag] = useTransition();
 
   const allTags = [...tags, ...newTags.filter((t) => t.categoryId === categoryId && !tags.some((x) => x.id === t.id))];
@@ -58,9 +59,10 @@ export function QuickAdd({ categoryId, tags, currency, today, onAdd }: Props) {
       amount: cents,
       date,
       tagIds: selected.filter((id) => allTags.some((t) => t.id === id)),
-      note: "",
+      note: note.trim(),
     });
     setAmount("");
+    setNote("");
     setSelected([]);
     amountRef.current?.focus();
   }
@@ -76,31 +78,35 @@ export function QuickAdd({ categoryId, tags, currency, today, onAdd }: Props) {
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
   }
 
-  function submitTag() {
-    const name = tagName.trim();
-    if (!name) {
-      setCreatingTag(false);
-      return;
-    }
+  /** Creates (or reuses) a tag by name and selects it. Resolves true on success. */
+  function createTag(name: string) {
     const existing = allTags.find((t) => t.name.toLowerCase() === name.toLowerCase());
     if (existing) {
       setSelected((s) => (s.includes(existing.id) ? s : [...s, existing.id]));
-      setTagName("");
-      setCreatingTag(false);
-      return;
+      return Promise.resolve(true);
     }
-    startSavingTag(async () => {
-      const res = await createTagAction({ categoryId, name, color: pickColor(allTags.length) });
-      if (res.ok && res.data) {
-        const tag = res.data;
-        setNewTags((t) => [...t, tag]);
-        setSelected((s) => [...s, tag.id]);
-        setTagName("");
-        setCreatingTag(false);
-      } else {
-        toast({ message: (!res.ok && (res.errors?.name?.[0] ?? res.message)) || "Couldn't create tag", tone: "error" });
-      }
+    return new Promise<boolean>((resolve) => {
+      startSavingTag(async () => {
+        const res = await createTagAction({ categoryId, name, color: pickColor(allTags.length) });
+        if (res.ok && res.data) {
+          const tag = res.data;
+          setNewTags((t) => [...t, tag]);
+          setSelected((s) => [...s, tag.id]);
+          resolve(true);
+        } else {
+          toast({ message: (!res.ok && (res.errors?.name?.[0] ?? res.message)) || "Couldn't create tag", tone: "error" });
+          resolve(false);
+        }
+      });
     });
+  }
+
+  function onNoteKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    // On touch devices "Done" just closes the keyboard; with a keyboard, Enter saves like the amount field.
+    if (window.matchMedia("(pointer: coarse)").matches) e.currentTarget.blur();
+    else save(e.shiftKey ? "income" : "expense");
   }
 
   const isToday = date === today;
@@ -138,8 +144,34 @@ export function QuickAdd({ categoryId, tags, currency, today, onAdd }: Props) {
           />
         </label>
 
-        {/* Date + tags */}
-        <div className="-mx-4 mt-2 flex items-center gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0">
+        {/* Description */}
+        <label className="mt-1 flex h-11 items-center gap-2 rounded-xl bg-subtle px-3 focus-within:bg-surface focus-within:shadow-[0_0_0_1px_var(--color-accent),0_0_0_4px_var(--color-accent-soft)]">
+          <PenLine className="size-4 shrink-0 text-muted" aria-hidden />
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            onKeyDown={onNoteKeyDown}
+            maxLength={200}
+            placeholder="Add a description (optional)"
+            aria-label="Description"
+            enterKeyHint="done"
+            autoComplete="off"
+            className="h-full min-w-0 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-muted focus-visible:outline-none"
+          />
+          {note ? (
+            <button
+              type="button"
+              onClick={() => setNote("")}
+              aria-label="Clear description"
+              className="-mr-1.5 flex size-8 items-center justify-center rounded-lg text-muted hover:text-ink"
+            >
+              <X className="size-4" aria-hidden />
+            </button>
+          ) : null}
+        </label>
+
+        {/* Date + access to every tag */}
+        <div className="mt-2.5 flex items-center gap-2">
           <div className="relative shrink-0">
             <input
               type="date"
@@ -164,53 +196,40 @@ export function QuickAdd({ categoryId, tags, currency, today, onAdd }: Props) {
             {isToday ? "Yesterday" : "Today"}
           </Chip>
 
-          <span className="mx-0.5 h-6 w-px shrink-0 bg-line lg:hidden" aria-hidden />
-
-          {allTags.map((t) => (
-            <Chip key={t.id} selected={selected.includes(t.id)} color={t.color} onClick={() => toggleTag(t.id)}>
-              {t.name}
-            </Chip>
-          ))}
-
-          {creatingTag ? (
-            <span className="flex h-10 shrink-0 items-center gap-1 rounded-full border border-accent bg-surface pl-3.5 pr-1.5 shadow-[0_0_0_4px_var(--color-accent-soft)]">
-              <input
-                autoFocus
-                value={tagName}
-                maxLength={30}
-                onChange={(e) => setTagName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    submitTag();
-                  }
-                  if (e.key === "Escape") {
-                    setTagName("");
-                    setCreatingTag(false);
-                  }
-                }}
-                onBlur={() => !tagName.trim() && setCreatingTag(false)}
-                placeholder="New tag"
-                aria-label="New tag name"
-                className="w-28 bg-transparent text-[14px] font-medium outline-none focus-visible:outline-none"
-              />
-              <button
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={submitTag}
-                disabled={savingTag}
-                className="flex h-8 items-center rounded-full bg-accent px-3 text-[13px] font-semibold text-white"
-              >
-                {savingTag ? <Spinner className="size-3.5" /> : "Add"}
-              </button>
-            </span>
-          ) : (
-            <Chip onClick={() => setCreatingTag(true)} className="border-dashed text-muted" aria-label="Create a new tag">
-              <Plus className="size-4" aria-hidden />
-              Tag
-            </Chip>
-          )}
+          <span className="flex-1" />
+          {/* Always visible: opens the full, searchable tag list */}
+          <button
+            type="button"
+            onClick={() => setPickerOpen(true)}
+            aria-label={allTags.length ? `All tags${selected.length ? `, ${selected.length} selected` : ""}` : "Create a tag"}
+            className={cn(
+              "press relative flex h-10 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[14px] font-medium",
+              selected.length ? "border-accent bg-accent-soft text-accent-ink" : "border-line bg-surface text-ink-2 hover:border-line-strong",
+            )}
+          >
+            {allTags.length ? <Tags className="size-4" aria-hidden /> : <Plus className="size-4" aria-hidden />}
+            {allTags.length ? "Tags" : "Tag"}
+            {selected.length ? (
+              <span className="flex size-5 items-center justify-center rounded-full bg-accent text-[11px] font-bold text-white">
+                {selected.length}
+              </span>
+            ) : null}
+          </button>
         </div>
+
+        {/* Most-used tags, one tap away */}
+        {allTags.length ? (
+          <div
+            ref={tagRowRef}
+            className="-mx-4 mt-2 flex items-center gap-2 overflow-x-auto px-4 pb-0.5 [mask-image:linear-gradient(to_right,black_90%,transparent)] [scrollbar-width:none] lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0 lg:[mask-image:none]"
+          >
+            {allTags.map((t) => (
+              <Chip key={t.id} selected={selected.includes(t.id)} color={t.color} onClick={() => toggleTag(t.id)}>
+                {t.name}
+              </Chip>
+            ))}
+          </div>
+        ) : null}
 
         {/* Actions */}
         <div className="mt-3 grid grid-cols-2 gap-3">
@@ -228,6 +247,25 @@ export function QuickAdd({ categoryId, tags, currency, today, onAdd }: Props) {
           <kbd className="font-sans font-semibold text-ink-2">Shift + Enter</kbd> saves income
         </p>
       </div>
+
+      <TagPickerSheet
+        open={pickerOpen}
+        onClose={() => {
+          setPickerOpen(false);
+          amountRef.current?.focus({ preventScroll: true });
+          // Bring the first selected tag into view so the choice made in the sheet is visible.
+          requestAnimationFrame(() =>
+            tagRowRef.current
+              ?.querySelector('[aria-pressed="true"]')
+              ?.scrollIntoView({ inline: "nearest", block: "nearest", behavior: "smooth" }),
+          );
+        }}
+        tags={allTags}
+        selected={selected}
+        onToggle={toggleTag}
+        onCreate={createTag}
+        creating={savingTag}
+      />
     </section>
   );
 }

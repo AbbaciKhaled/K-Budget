@@ -42,3 +42,20 @@ export async function listTagsWithUsage(categoryId: string) {
     return { ...t, usage: u?.count ?? 0, income: Math.round(u?.income ?? 0), expense: Math.round(u?.expense ?? 0) };
   });
 }
+
+/** Tags ordered by how often they were used in the last 90 days (then by name) — for quick-add. */
+export async function listTagsByRecentUsage(categoryId: string): Promise<TagDTO[]> {
+  const userId = await requireUserId();
+  const since = new Date(Date.now() - 90 * 86_400_000);
+  const [tags, usage] = await Promise.all([
+    listTags(categoryId),
+    Transaction.aggregate<{ _id: Types.ObjectId; count: number }>([
+      { $match: { userId, categoryId: new Types.ObjectId(categoryId), date: { $gte: since }, "tagIds.0": { $exists: true } } },
+      { $unwind: "$tagIds" },
+      { $group: { _id: "$tagIds", count: { $sum: 1 } } },
+    ]),
+  ]);
+  const counts = new Map(usage.map((u) => [u._id.toString(), u.count]));
+  // listTags is already alphabetical, and Array.sort is stable.
+  return [...tags].sort((a, b) => (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0));
+}

@@ -19,7 +19,7 @@ export function Page({
     <main
       className={cn(
         "mx-auto w-full px-4 pt-[max(env(safe-area-inset-top),16px)] sm:px-6 lg:px-10 lg:pb-12 lg:pt-10",
-        withQuickAdd ? "pb-[calc(env(safe-area-inset-bottom)+330px)]" : "pb-[calc(env(safe-area-inset-bottom)+96px)]",
+        withQuickAdd ? "pb-[calc(env(safe-area-inset-bottom)+390px)]" : "pb-[calc(env(safe-area-inset-bottom)+96px)]",
         wide ? "max-w-5xl" : "max-w-2xl",
         className,
       )}
