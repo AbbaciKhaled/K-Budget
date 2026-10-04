@@ -18,19 +18,13 @@ if (!process.env.MONGODB_URI) {
   process.exit(1);
 }
 
+// Colors follow the app's validated categorical order (src/lib/palette.ts).
+const PALETTE = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"];
+
 const PRESETS = {
-  default: {
-    expense: [["Groceries", "#07875a"], ["Transport", "#0a74da"], ["Leisure", "#d6338a"], ["Bills", "#d4560b"]],
-    income: [["Salary", "#3245ff"], ["Refund", "#0f8a8a"]],
-  },
-  "my son": {
-    expense: [["Diapers", "#3245ff"], ["Clothes", "#d6338a"], ["Doctor", "#de3f45"], ["Childcare", "#b7791f"]],
-    income: [["Family allowance", "#07875a"]],
-  },
-  vinted: {
-    expense: [["Shipping", "#646b78"], ["Stock", "#d4560b"]],
-    income: [["Flea market 1", "#3245ff"], ["Flea market 2", "#6e4bf2"], ["Online sales", "#0f8a8a"]],
-  },
+  default: { expense: ["Groceries", "Transport", "Leisure", "Bills"], income: ["Salary", "Refund"] },
+  "my son": { expense: ["Diapers", "Clothes", "Doctor", "Childcare"], income: ["Family allowance"] },
+  vinted: { expense: ["Shipping", "Stock"], income: ["Flea market 1", "Flea market 2", "Online sales"] },
 };
 
 const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
@@ -58,8 +52,10 @@ for (const category of categories) {
   const preset = PRESETS[category.name.toLowerCase()] ?? PRESETS.default;
   const tagIds = { income: [], expense: [] };
 
-  for (const type of ["income", "expense"]) {
-    for (const [name, color] of preset[type]) {
+  let colorIndex = await db.collection("tags").countDocuments({ userId: user._id, categoryId: category._id });
+  for (const type of ["expense", "income"]) {
+    for (const name of preset[type]) {
+      const color = PALETTE[colorIndex % PALETTE.length];
       const existing = await db.collection("tags").findOne({ userId: user._id, categoryId: category._id, name });
       const id =
         existing?._id ??
@@ -73,6 +69,7 @@ for (const category of categories) {
             updatedAt: new Date(),
           })
         ).insertedId;
+      if (!existing) colorIndex += 1;
       tagIds[type].push(id);
     }
   }

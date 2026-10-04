@@ -18,16 +18,14 @@ export const Chip = forwardRef<HTMLButtonElement, ChipProps>(function Chip(
       aria-pressed={selected}
       className={cn(
         "press inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-[14px] font-medium",
-        selected ? "border-transparent text-white shadow-sm" : "border-line bg-surface text-ink-2 hover:border-line-strong",
+        selected ? "border-accent bg-accent text-white shadow-sm" : "border-line bg-surface text-ink-2 hover:border-line-strong",
         className,
       )}
-      style={selected ? { backgroundColor: color ?? "var(--color-ink)" } : undefined}
       {...props}
     >
-      {selected ? (
-        <Check className="size-3.5 stroke-[3]" aria-hidden />
-      ) : color ? (
-        <span className="size-2 rounded-full" style={{ backgroundColor: color }} aria-hidden />
+      {selected ? <Check className="size-3.5 stroke-[3]" aria-hidden /> : null}
+      {color ? (
+        <span className={cn("size-2 rounded-full", selected && "ring-2 ring-white")} style={{ backgroundColor: color }} aria-hidden />
       ) : null}
       {children}
     </button>

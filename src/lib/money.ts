@@ -30,7 +30,7 @@ function formatter(currency: string, compact: boolean, signDisplay: Intl.NumberF
       style: "currency",
       currency,
       signDisplay,
-      ...(compact ? { notation: "compact", maximumFractionDigits: 1 } : {}),
+      ...(compact ? { notation: "compact", minimumFractionDigits: 0, maximumFractionDigits: 1 } : {}),
     });
     formatters.set(key, f);
   }

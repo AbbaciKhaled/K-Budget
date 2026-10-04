@@ -1,15 +1,17 @@
-/** Colors offered for categories and tags — all readable as text on white (AA). */
+/**
+ * Colors offered for categories and tags. Order is the validated categorical order
+ * (adjacent pairs pass CVD ΔE ≥ 8 and normal-vision ΔE ≥ 15 on white), so tags created
+ * in sequence get colors that stay distinguishable in charts. Used for marks, never text.
+ */
 export const COLORS = [
-  "#3245ff",
-  "#6e4bf2",
-  "#d6338a",
-  "#de3f45",
-  "#d4560b",
-  "#b7791f",
-  "#07875a",
-  "#0f8a8a",
-  "#0a74da",
-  "#646b78",
+  "#2a78d6",
+  "#eb6834",
+  "#1baf7a",
+  "#eda100",
+  "#e87ba4",
+  "#008300",
+  "#4a3aa7",
+  "#e34948",
 ] as const;
 
 export const CATEGORY_EMOJIS = [
