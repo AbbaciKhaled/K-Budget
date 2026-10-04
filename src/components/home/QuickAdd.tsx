@@ -164,7 +164,7 @@ export function QuickAdd({ categoryId, tags, currency, today, onAdd }: Props) {
             {isToday ? "Yesterday" : "Today"}
           </Chip>
 
-          <span className="mx-0.5 h-6 w-px shrink-0 bg-line" aria-hidden />
+          <span className="mx-0.5 h-6 w-px shrink-0 bg-line lg:hidden" aria-hidden />
 
           {allTags.map((t) => (
             <Chip key={t.id} selected={selected.includes(t.id)} color={t.color} onClick={() => toggleTag(t.id)}>

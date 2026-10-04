@@ -1,36 +1,62 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# K-Budget
 
-## Getting Started
+Minimal, effortless personal budgeting. Log a transaction in under five seconds, split your money into
+independent categories ("My son", "Vinted", …), tag what matters and read clear KPIs.
 
-First, run the development server:
+**Stack:** Next.js 16 (App Router, Turbopack) · TypeScript · Tailwind CSS v4 · MongoDB + Mongoose ·
+Auth.js v5 (credentials, bcrypt) · Zod (shared client/server) · Recharts
+
+## Getting started
+
+Requirements: Node.js ≥ 20.9 and a MongoDB database (Atlas free tier or local).
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env.local   # then fill in the values
+npm run dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+| Variable          | Description                                                        |
+| ----------------- | ------------------------------------------------------------------ |
+| `MONGODB_URI`     | MongoDB connection string, including the database name             |
+| `AUTH_SECRET`     | Random secret for session tokens — `npx auth secret` or `openssl rand -base64 32` |
+| `AUTH_TRUST_HOST` | `true` when running behind a proxy or in production                 |
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Command                         | What it does                                          |
+| ------------------------------- | ----------------------------------------------------- |
+| `npm run dev`                   | Dev server                                            |
+| `npm run build` / `npm start`   | Production build / server                             |
+| `npm run lint`                  | ESLint                                                |
+| `npm run typecheck`             | Generates route types and runs `tsc --noEmit`         |
+| `npm run seed:demo -- <user>`   | Adds ~14 months of random demo data to an existing account (dev only) |
 
-## Learn More
+## Project structure
 
-To learn more about Next.js, take a look at the following resources:
+```
+src/
+  app/
+    (auth)/login, signup        public pages
+    (app)/                      protected app: home, transactions, kpis, categories, tags, profile
+    onboarding/                 first-category screen
+    api/auth/[...nextauth]      Auth.js handlers
+  proxy.ts                      route protection (Next 16 "proxy", formerly middleware)
+  auth.ts / auth.config.ts      Auth.js (full instance / edge-safe config)
+  models/                       Mongoose models: User, Category, Tag, Transaction
+  server/
+    actions/                    server actions (mutations) — always scoped to the session user
+    queries/                    read side (aggregations for summary, history, KPIs)
+    session.ts, ownership.ts    current user helpers, ownership checks
+  lib/                          money (cents ↔ display), dates, periods, palette, Zod schemas
+  components/                   ui primitives + feature components (home, transactions, kpis…)
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Design notes
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Money is stored in cents** (integers) and formatted with `Intl.NumberFormat` in the user's currency.
+- **Dates** are calendar dates stored at UTC midnight and exchanged as `yyyy-mm-dd`.
+- **Security:** every query filters by the logged-in `userId`; category and tag ids sent by the client are
+  re-checked server-side (tags must belong to the transaction's category).
+- **Quick-add** is optimistic: the transaction appears instantly, with an Undo toast.
+- Tag/category colors follow a colorblind-safe categorical order so charts stay readable.

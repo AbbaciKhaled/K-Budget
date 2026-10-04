@@ -10,6 +10,13 @@ let dummyHash: string | undefined;
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
+  logger: {
+    // A wrong password is an expected outcome, not a server error.
+    error(error) {
+      if (error.name === "CredentialsSignin") return;
+      console.error(error);
+    },
+  },
   providers: [
     Credentials({
       credentials: {
