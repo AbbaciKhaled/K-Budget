@@ -18,6 +18,7 @@ import { BalanceChart, CHART_COLORS, IncomeExpenseChart, Legend, SeriesTable } f
 import { KpiCards } from "./KpiCards";
 import { LargestTransactions } from "./LargestTransactions";
 import { TagBreakdown } from "./TagBreakdown";
+import { TagInOut } from "./TagInOut";
 
 type Props = {
   categories: CategoryDTO[];
@@ -177,8 +178,8 @@ export function KpiDashboard({ categories, current, tags, currency, today, perio
                 </div>
 
                 <TagBreakdown byTag={data.byTag} tags={tags} currency={currency} />
-
-<LargestTransactions largest={data.largest} tagsById={tagsById} currency={currency} today={today} />
+                <TagInOut byTag={data.byTag} tags={tags} currency={currency} />
+                <LargestTransactions largest={data.largest} tagsById={tagsById} currency={currency} today={today} />
               </>
             )}
           </>

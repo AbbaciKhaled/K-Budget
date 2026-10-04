@@ -7,11 +7,11 @@ import { TagsManager } from "./TagsManager";
 export const metadata: Metadata = { title: "Tags" };
 
 export default async function TagsPage() {
-  const { categories, current } = await getCategoryContext();
+  const { user, categories, current } = await getCategoryContext();
   const tags = await listTagsWithUsage(current.id);
   return (
     <Page>
-      <TagsManager key={current.id} categories={categories} current={current} tags={tags} />
+      <TagsManager key={current.id} categories={categories} current={current} tags={tags} currency={user.currency} />
     </Page>
   );
 }

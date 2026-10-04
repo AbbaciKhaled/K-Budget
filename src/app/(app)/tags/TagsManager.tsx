@@ -12,21 +12,24 @@ import { InputField } from "@/components/ui/Field";
 import { ColorPicker } from "@/components/ui/Pickers";
 import { Sheet } from "@/components/ui/Sheet";
 import { useToast } from "@/components/ui/Toast";
+import { formatMoney } from "@/lib/money";
 import { pickColor } from "@/lib/palette";
 import type { CategoryDTO, TagDTO } from "@/lib/types";
 import { tagUpdateSchema } from "@/lib/validation/budget";
 import { createTagAction, deleteTagAction, updateTagAction } from "@/server/actions/tags";
 
-type TagWithUsage = TagDTO & { usage: number };
+type TagWithUsage = TagDTO & { usage: number; income: number; expense: number };
 
 export function TagsManager({
   categories,
   current,
   tags,
+  currency,
 }: {
   categories: CategoryDTO[];
   current: CategoryDTO;
   tags: TagWithUsage[];
+  currency: string;
 }) {
   const toast = useToast();
   const [name, setName] = useState("");
@@ -68,7 +71,7 @@ export function TagsManager({
 
   return (
     <>
-      <PageHeader title="Tags" subtitle="Tags belong to a single category." />
+      <PageHeader title="Tags" subtitle="Tags belong to a single category. Amounts are all-time in / out." />
 
       <div className="mb-5 flex items-center justify-between gap-3">
         <span className="text-[13px] font-medium text-muted">Category</span>
@@ -113,9 +116,21 @@ export function TagsManager({
                   className="flex min-h-14 w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-subtle/70"
                 >
                   <span className="size-3 shrink-0 rounded-full" style={{ backgroundColor: t.color }} aria-hidden />
-                  <span className="flex-1 truncate text-[15px] font-medium">{t.name}</span>
-                  <span className="text-[13px] text-muted">
-                    {t.usage} {t.usage === 1 ? "use" : "uses"}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[15px] font-medium">{t.name}</span>
+                    <span className="block text-[13px] text-muted">
+                      {t.usage} {t.usage === 1 ? "use" : "uses"}
+                    </span>
+                  </span>
+                  <span className="tabular flex flex-col items-end text-[13px] leading-snug">
+                    <span className={t.income ? "font-semibold text-income" : "text-muted"}>
+                      <span className="sr-only">In </span>
+                      {formatMoney(t.income, currency, { sign: "exceptZero" })}
+                    </span>
+                    <span className={t.expense ? "font-semibold text-ink" : "text-muted"}>
+                      <span className="sr-only">Out </span>
+                      {formatMoney(-t.expense, currency, { sign: "exceptZero" })}
+                    </span>
                   </span>
                   <ChevronRight className="size-4 shrink-0 text-muted" aria-hidden />
                 </button>

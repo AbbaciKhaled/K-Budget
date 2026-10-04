@@ -17,16 +17,28 @@ export async function listTags(categoryId: string): Promise<TagDTO[]> {
   return tags.map(toTagDTO);
 }
 
+/** Tags with all-time usage and money in / out (multi-tag transactions are split evenly, as in KPIs). */
 export async function listTagsWithUsage(categoryId: string) {
   const userId = await requireUserId();
   const [tags, usage] = await Promise.all([
     listTags(categoryId),
-    Transaction.aggregate<{ _id: Types.ObjectId; count: number }>([
+    Transaction.aggregate<{ _id: Types.ObjectId; count: number; income: number; expense: number }>([
       { $match: { userId, categoryId: new Types.ObjectId(categoryId), "tagIds.0": { $exists: true } } },
+      { $addFields: { share: { $divide: ["$amount", { $size: "$tagIds" }] } } },
       { $unwind: "$tagIds" },
-      { $group: { _id: "$tagIds", count: { $sum: 1 } } },
+      {
+        $group: {
+          _id: "$tagIds",
+          count: { $sum: 1 },
+          income: { $sum: { $cond: [{ $eq: ["$type", "income"] }, "$share", 0] } },
+          expense: { $sum: { $cond: [{ $eq: ["$type", "expense"] }, "$share", 0] } },
+        },
+      },
     ]),
   ]);
-  const counts = new Map(usage.map((u) => [u._id.toString(), u.count]));
-  return tags.map((t) => ({ ...t, usage: counts.get(t.id) ?? 0 }));
+  const byId = new Map(usage.map((u) => [u._id.toString(), u]));
+  return tags.map((t) => {
+    const u = byId.get(t.id);
+    return { ...t, usage: u?.count ?? 0, income: Math.round(u?.income ?? 0), expense: Math.round(u?.expense ?? 0) };
+  });
 }
