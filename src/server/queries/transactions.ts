@@ -1,7 +1,7 @@
 import "server-only";
 import { Types } from "mongoose";
 import { connectDB } from "@/lib/db";
-import { addMonths, fromISODate, startOfMonth } from "@/lib/dates";
+import { addMonths, fromISODate, startOfYear } from "@/lib/dates";
 import type { TransactionDTO } from "@/lib/types";
 import { Transaction } from "@/models/Transaction";
 import { toTransactionDTOs } from "@/server/mappers";
@@ -35,9 +35,10 @@ export async function getTotals(categoryId: string, fromIso: string, toIsoExclus
   };
 }
 
-export async function getMonthTotals(categoryId: string, todayIso: string) {
-  const from = startOfMonth(todayIso);
-  return getTotals(categoryId, from, addMonths(from, 1));
+/** Totals for the current calendar year (1 January → 31 December). */
+export async function getYearTotals(categoryId: string, todayIso: string) {
+  const from = startOfYear(todayIso);
+  return getTotals(categoryId, from, addMonths(from, 12));
 }
 
 export type TransactionFilters = {

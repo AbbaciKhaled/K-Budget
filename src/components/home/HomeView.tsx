@@ -21,7 +21,7 @@ type Props = {
   userName: string;
   currency: string;
   today: string;
-  monthLabel: string;
+  periodLabel: string;
   categories: CategoryDTO[];
   current: CategoryDTO;
   tags: TagDTO[];
@@ -38,16 +38,16 @@ function byNewest(a: TransactionDTO, b: TransactionDTO) {
   return a.date === b.date ? (a.id < b.id ? 1 : -1) : a.date < b.date ? 1 : -1;
 }
 
-export function HomeView({ userId, userName, currency, today, monthLabel, categories, current, tags, totals, recent }: Props) {
+export function HomeView({ userId, userName, currency, today, periodLabel, categories, current, tags, totals, recent }: Props) {
   const toast = useToast();
   const created = useRef(new Map<string, Promise<unknown>>());
   const tagsById = useMemo(() => new Map(tags.map((t) => [t.id, t])), [tags]);
-  const month = today.slice(0, 7);
+  const year = today.slice(0, 4);
 
   const [state, apply] = useOptimistic<State, OptimisticAction>({ totals, recent }, (s, action) => {
     const { tx } = action;
-    const inMonth = tx.date.slice(0, 7) === month;
-    const delta = (action.kind === "add" ? 1 : -1) * (inMonth ? tx.amount : 0);
+    const inPeriod = tx.date.slice(0, 4) === year;
+    const delta = (action.kind === "add" ? 1 : -1) * (inPeriod ? tx.amount : 0);
     const nextTotals = { ...s.totals, [tx.type]: s.totals[tx.type] + delta };
     const nextRecent =
       action.kind === "add"
@@ -95,7 +95,7 @@ export function HomeView({ userId, userName, currency, today, monthLabel, catego
           <CategorySwitcher categories={categories} current={current} />
         </header>
 
-        <SummaryCard income={state.totals.income} expense={state.totals.expense} currency={currency} monthLabel={monthLabel} />
+        <SummaryCard income={state.totals.income} expense={state.totals.expense} currency={currency} periodLabel={periodLabel} />
 
         <section aria-labelledby="recent-title" className="flex flex-col gap-3">
           <SectionTitle

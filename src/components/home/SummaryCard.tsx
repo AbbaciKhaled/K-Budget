@@ -8,12 +8,12 @@ export function SummaryCard({
   income,
   expense,
   currency,
-  monthLabel,
+  periodLabel,
 }: {
   income: number;
   expense: number;
   currency: string;
-  monthLabel: string;
+  periodLabel: string;
 }) {
   const balance = income - expense;
   const total = income + expense;
@@ -22,9 +22,9 @@ export function SummaryCard({
   return (
     <Card className="relative overflow-hidden p-5 sm:p-6">
       <div className="flex items-center justify-between">
-        <p className="text-[13px] font-medium text-muted">{monthLabel} balance</p>
+        <p className="text-[13px] font-medium text-muted">{periodLabel} balance</p>
         <Link
-          href="/kpis"
+          href="/kpis?period=year"
           className="-mr-2 inline-flex h-9 items-center gap-0.5 rounded-lg px-2 text-[13px] font-semibold text-accent hover:bg-accent-soft"
         >
           Insights <ChevronRight className="size-3.5" aria-hidden />
@@ -42,7 +42,7 @@ export function SummaryCard({
       <div
         className="mt-5 flex h-1.5 gap-1 overflow-hidden rounded-full"
         role="img"
-        aria-label={`Income ${Math.round(incomeShare)}% of money moved this month`}
+        aria-label={`Income ${Math.round(incomeShare)}% of money moved in ${periodLabel}`}
       >
         {total === 0 ? (
           <div className="h-full flex-1 rounded-full bg-subtle" />
