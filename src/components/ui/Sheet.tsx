@@ -30,8 +30,13 @@ export function Sheet({ open, onClose, title, description, children, className }
   return (
     <dialog
       ref={ref}
-      onClose={onClose}
+      // React propagates `close`/`cancel` through the component tree, so a sheet opened
+      // inside this one (e.g. the tag picker in the edit form) would close it too.
+      onClose={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
       onCancel={(e) => {
+        if (e.target !== e.currentTarget) return;
         e.preventDefault();
         onClose();
       }}
