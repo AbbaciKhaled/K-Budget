@@ -9,6 +9,7 @@ import { safeRedirectPath } from "@/lib/utils";
 import { loginSchema, signupSchema } from "@/lib/validation/auth";
 import { fieldErrors, formToObject, type ActionResult, type FieldErrors } from "@/lib/validation/form";
 import { User } from "@/models/User";
+import { isSignupEnabled } from "@/server/config";
 import { clientIp, isRateLimited, LIMITS, recordAttempt } from "@/server/rateLimit";
 
 const TOO_MANY = "Too many attempts. Please wait 15 minutes and try again.";
@@ -18,6 +19,9 @@ function isDuplicateKeyError(error: unknown): error is { code: number; keyPatter
 }
 
 export async function signupAction(formData: FormData): Promise<ActionResult> {
+  // Enforced here too, so the action can't be called directly when sign-ups are closed.
+  if (!isSignupEnabled()) return { ok: false, message: "Sign-ups are closed on this instance." };
+
   const parsed = signupSchema.safeParse(formToObject(formData));
   if (!parsed.success) return { ok: false, errors: fieldErrors(parsed.error) };
 

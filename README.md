@@ -122,6 +122,7 @@ npm run dev                  # → http://localhost:3000
 | `MONGODB_URI`     | MongoDB connection string, including the database name                              |
 | `AUTH_SECRET`     | Random secret for session tokens — `npx auth secret` or `openssl rand -base64 32`   |
 | `AUTH_TRUST_HOST` | `true` when running behind a proxy or in production                                 |
+| `SIGNUP_ENABLED`  | Optional, defaults to `true`. Set to `false` for a private instance — no new accounts, existing ones can still log in |
 
 Create an account, then your first category, and start logging. Want data to play with?
 `npm run seed:demo -- <your-username>` adds ~14 months of random transactions to your account (dev only).
