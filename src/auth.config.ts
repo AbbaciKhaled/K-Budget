@@ -17,8 +17,13 @@ export const authConfig = {
       // Returning false redirects to `pages.signIn` with a callbackUrl.
       return isLoggedIn;
     },
+    jwt({ token, user }) {
+      if (user) token.sv = user.sessionVersion ?? 0;
+      return token;
+    },
     session({ session, token }) {
       if (token.sub && session.user) session.user.id = token.sub;
+      session.sessionVersion = token.sv ?? 0;
       return session;
     },
   },

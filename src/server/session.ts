@@ -7,20 +7,26 @@ import { connectDB } from "@/lib/db";
 import { User } from "@/models/User";
 import type { CurrentUser } from "@/lib/types";
 
-/** Returns the logged-in user's id as an ObjectId, or redirects to login. */
-export const requireUserId = cache(async (): Promise<Types.ObjectId> => {
+/**
+ * Loads the session's user once per request. Sessions are stateless JWTs, so this is
+ * where they get revoked: unknown user or outdated session version → sign out.
+ */
+const loadSessionUser = cache(async () => {
   const session = await auth();
   const id = session?.user?.id;
   if (!id || !Types.ObjectId.isValid(id)) redirect("/login");
-  return new Types.ObjectId(id);
+  await connectDB();
+  const user = await User.findById(id).lean();
+  if (!user || (user.sessionVersion ?? 0) !== (session.sessionVersion ?? 0)) redirect("/api/logout");
+  return user;
 });
+
+/** Returns the logged-in user's id as an ObjectId, or redirects to login. */
+export const requireUserId = cache(async (): Promise<Types.ObjectId> => (await loadSessionUser())._id);
 
 /** Loads the logged-in user (deduplicated per request). */
 export const requireUser = cache(async (): Promise<CurrentUser> => {
-  const userId = await requireUserId();
-  await connectDB();
-  const user = await User.findById(userId).lean();
-  if (!user) redirect("/api/logout");
+  const user = await loadSessionUser();
   return {
     id: user._id.toString(),
     username: user.username,

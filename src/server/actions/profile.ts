@@ -1,6 +1,7 @@
 "use server";
 
 import bcrypt from "bcryptjs";
+import { signOut } from "@/auth";
 import { revalidatePath } from "next/cache";
 import { connectDB } from "@/lib/db";
 import { passwordChangeSchema, profileSchema } from "@/lib/validation/auth";
@@ -42,6 +43,9 @@ export async function changePasswordAction(formData: FormData): Promise<ActionRe
   if (!valid) return { ok: false, errors: { currentPassword: ["Current password is incorrect"] } };
 
   user.passwordHash = await bcrypt.hash(parsed.data.newPassword, 12);
+  // Invalidates every existing session (other devices included), then logs this one out.
+  user.sessionVersion = (user.sessionVersion ?? 0) + 1;
   await user.save();
+  await signOut({ redirectTo: "/login?reason=password-changed" });
   return { ok: true, message: "Password changed" };
 }

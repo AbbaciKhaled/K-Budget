@@ -13,6 +13,7 @@ import { Tag } from "@/models/Tag";
 import { Transaction } from "@/models/Transaction";
 import { User } from "@/models/User";
 import { accessibleCategory } from "@/server/access";
+import { isRateLimited, LIMITS, recordAttempt } from "@/server/rateLimit";
 import { requireUserId } from "@/server/session";
 
 async function nameTaken(userId: Types.ObjectId, name: string, exceptId?: string) {
@@ -103,6 +104,12 @@ export async function shareCategoryAction(id: string, identifier: string): Promi
   await connectDB();
   const category = await ownedCategory(userId, id);
   if (!category) return { ok: false, message: "Only the owner can share this category." };
+
+  const shareKey = `share:${userId.toString()}`;
+  if (await isRateLimited(shareKey, LIMITS.share)) {
+    return { ok: false, message: "Too many share attempts. Please try again in an hour." };
+  }
+  await recordAttempt(shareKey, LIMITS.share);
 
   const value = parsed.data.replace(/^@/, "");
   const member = await User.findOne(value.includes("@") ? { email: value } : { username: value })

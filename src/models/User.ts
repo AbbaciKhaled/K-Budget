@@ -8,6 +8,8 @@ const userSchema = new Schema(
     passwordHash: { type: String, required: true, select: false },
     currency: { type: String, required: true, default: "EUR" },
     lastCategoryId: { type: Schema.Types.ObjectId, ref: "Category", default: null },
+    /** Incremented on password change: sessions carrying an older value are rejected. */
+    sessionVersion: { type: Number, default: 0 },
   },
   { timestamps: true },
 );
