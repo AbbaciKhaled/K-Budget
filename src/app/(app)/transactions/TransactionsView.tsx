@@ -6,22 +6,19 @@ import { useMemo, useState, useTransition } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
 import { CategorySwitcher } from "@/components/categories/CategorySwitcher";
 import { PageHeader } from "@/components/layout/Page";
-import { TransactionForm } from "@/components/transactions/TransactionForm";
+import { EditTransactionSheet } from "@/components/transactions/EditTransactionSheet";
 import { TransactionRow } from "@/components/transactions/TransactionRow";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Chip } from "@/components/ui/Chip";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { InputField } from "@/components/ui/Field";
 import { Segmented } from "@/components/ui/Segmented";
 import { Sheet } from "@/components/ui/Sheet";
-import { useToast } from "@/components/ui/Toast";
 import { addDays, formatFullDate, relativeDayLabel, startOfMonth, startOfYear } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
 import type { CategoryDTO, TagDTO, TransactionDTO } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { deleteTransactionAction } from "@/server/actions/transactions";
 import type { TransactionFilters } from "@/server/queries/transactions";
 
 type Props = {
@@ -51,12 +48,9 @@ export function TransactionsView(props: Props) {
   const { userId, categories, current, tags, currency, today, filters, pageSize, items, hasMore, totals, count } = props;
   const router = useRouter();
   const pathname = usePathname();
-  const toast = useToast();
   const [navigating, startNav] = useTransition();
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [editing, setEditing] = useState<TransactionDTO | null>(null);
-  const [deleting, setDeleting] = useState<TransactionDTO | null>(null);
-  const [pendingDelete, startDelete] = useTransition();
 
   const tagsById = useMemo(() => new Map(tags.map((t) => [t.id, t])), [tags]);
   const groups = useMemo(() => groupByDay(items), [items]);
@@ -70,17 +64,6 @@ export function TransactionsView(props: Props) {
     for (const [k, v] of Object.entries(next)) if (v) params.set(k, v);
     const qs = params.toString();
     startNav(() => router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false }));
-  }
-
-  function confirmDelete() {
-    if (!deleting) return;
-    const target = deleting;
-    startDelete(async () => {
-      const res = await deleteTransactionAction(target.id);
-      setDeleting(null);
-      setEditing(null);
-      toast(res.ok ? { message: "Transaction deleted" } : { message: res.message ?? "Couldn't delete", tone: "error" });
-    });
   }
 
   const rangeLabel =
@@ -229,37 +212,12 @@ export function TransactionsView(props: Props) {
         }}
       />
 
-      <Sheet
-        open={editing !== null && deleting === null}
+      <EditTransactionSheet
+        tx={editing}
         onClose={() => setEditing(null)}
-        title="Edit transaction"
-        description={
-          editing && current.shared ? `Added by ${editing.author.id === userId ? "you" : editing.author.name}` : undefined
-        }
-      >
-        {editing ? (
-          <TransactionForm
-            key={editing.id}
-            tx={editing}
-            tags={tags}
-            currency={currency}
-            onSaved={() => setEditing(null)}
-            onDelete={() => setDeleting(editing)}
-          />
-        ) : null}
-      </Sheet>
-
-      <ConfirmDialog
-        open={deleting !== null}
-        onClose={() => setDeleting(null)}
-        onConfirm={confirmDelete}
-        pending={pendingDelete}
-        title="Delete this transaction?"
-        description={
-          deleting
-            ? `${deleting.type === "income" ? "Income" : "Expense"} of ${formatMoney(deleting.amount, currency)} on ${formatFullDate(deleting.date)} will be permanently deleted.`
-            : null
-        }
+        tags={tags}
+        currency={currency}
+        viewerId={current.shared ? userId : undefined}
       />
     </>
   );
